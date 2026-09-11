@@ -1,5 +1,5 @@
 ccxt
 numpy<2.0
 pandas
-pandas_ta
+pandas-ta==0.4.71b0
 requests
