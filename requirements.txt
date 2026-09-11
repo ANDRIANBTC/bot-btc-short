@@ -1,4 +1,4 @@
 ccxt
 pandas
-pandas-ta==0.4.71b0
 requests
+git+https://github.com/twopirllc/pandas-ta.git
