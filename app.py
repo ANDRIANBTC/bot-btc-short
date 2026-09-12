@@ -59,20 +59,14 @@ def cargar_datos():
     df['ema50'] = ta.ema(df['close'], length=50)
     df['rsi'] = ta.rsi(df['close'], length=14)
     
-    # Cálculo de ADX con detección dinámica de columnas para evitar KeyErrors
+    # Cálculo de ADX usando índices posicionales (100% robusto ante cambios de nombres)
     adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
     
-    cols = adx_df.columns
-    adx_col = [c for c in cols if 'ADX' in c.upper()][0]
-    pdi_col = [c for c in cols if 'DMP' in c.upper() or 'DI+' in c or 'PLUS' in c.upper()][0]
-    mdi_col = [c for c in cols if 'DMN' in c.upper() or 'DI-' in c or 'MINUS' in c.upper()][0]
-    
-    df['adx'] = adx_df[adx_col]
-    df['plus_di'] = adx_df[pdi_col]
-    df['minus_di'] = adx_df[mdi_col]
+    df['adx'] = adx_df.iloc[:, 0]      # Primera columna: ADX
+    df['plus_di'] = adx_df.iloc[:, 1]  # Segunda columna: +DI / DMP
+    df['minus_di'] = adx_df.iloc[:, 2] # Tercera columna: -DI / DMN
     
     return df.dropna().reset_index(drop=True)
-
 with st.spinner("Conectando con Binance y calculando indicadores..."):
     df = cargar_datos()
 
