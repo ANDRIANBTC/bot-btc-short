@@ -54,17 +54,28 @@ def cargar_datos():
     bars = exchange.fetch_ohlcv('BTC/USDT', timeframe='4h', limit=300)
     df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     
+    # Limpiar índices para evitar desalineaciones en los cálculos
+    high = df['high'].astype(float).reset_index(drop=True)
+    low = df['low'].astype(float).reset_index(drop=True)
+    close = df['close'].astype(float).reset_index(drop=True)
+    
     # Indicadores técnicos básicos
-    df['ema20'] = ta.ema(df['close'], length=20)
-    df['ema50'] = ta.ema(df['close'], length=50)
-    df['rsi'] = ta.rsi(df['close'], length=14)
+    df['ema20'] = ta.ema(close, length=20)
+    df['ema50'] = ta.ema(close, length=50)
+    df['rsi'] = ta.rsi(close, length=14)
     
-    # Cálculo de ADX usando índices posicionales (100% robusto ante cambios de nombres)
-    adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
+    # Cálculo seguro de ADX
+    adx_df = ta.adx(high, low, close, length=14)
     
-    df['adx'] = adx_df.iloc[:, 0]      # Primera columna: ADX
-    df['plus_di'] = adx_df.iloc[:, 1]  # Segunda columna: +DI / DMP
-    df['minus_di'] = adx_df.iloc[:, 2] # Tercera columna: -DI / DMN
+    if adx_df is not None and not adx_df.empty and adx_df.shape[1] >= 3:
+        df['adx'] = adx_df.iloc[:, 0].values
+        df['plus_di'] = adx_df.iloc[:, 1].values
+        df['minus_di'] = adx_df.iloc[:, 2].values
+    else:
+        # Valores por defecto en caso de fallo extremo del indicador
+        df['adx'] = 0.0
+        df['plus_di'] = 0.0
+        df['minus_di'] = 0.0
     
     return df.dropna().reset_index(drop=True)
 with st.spinner("Conectando con Binance y calculando indicadores..."):
