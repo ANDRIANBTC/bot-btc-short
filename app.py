@@ -35,16 +35,6 @@ def enviar_alerta_telegram(mensaje):
         print(f"Error al enviar alerta: {e}")
         return False
 
-def enviar_alerta_telegram(token, chat_id, mensaje):
-    """Función para enviar mensajes automáticos vía Telegram"""
-    if not token or not chat_id:
-        return False
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": mensaje,
-        "parse_mode": "Markdown"
-    }
     try:
         response = requests.post(url, json=payload)
         return response.status_code == 200
