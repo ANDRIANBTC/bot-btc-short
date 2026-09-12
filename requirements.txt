@@ -1,6 +1,7 @@
 streamlit
 setuptools
 wheel
-ccxt>=4.0.0
+ccxt
 pandas
+pandas-ta
 requests
