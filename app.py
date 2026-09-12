@@ -50,7 +50,8 @@ if st.button("🧪 Enviar Alerta de Prueba a Telegram"):
 
 @st.cache_data(ttl=300)
 def cargar_datos():
-    exchange = ccxt.binance()
+    # Usamos Kraken para evitar el bloqueo geográfico (Error 451) de Binance en la nube
+    exchange = ccxt.kraken()
     bars = exchange.fetch_ohlcv('BTC/USDT', timeframe='4h', limit=300)
     df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     
