@@ -50,20 +50,26 @@ if st.button("🧪 Enviar Alerta de Prueba a Telegram"):
 
 @st.cache_data(ttl=300)
 def cargar_datos():
-    # Usamos Kraken para evitar el bloqueo geográfico (Error 451) de Binance en la nube
     exchange = ccxt.kraken()
     bars = exchange.fetch_ohlcv('BTC/USDT', timeframe='4h', limit=300)
     df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     
-    # Indicadores técnicos
+    # Indicadores técnicos básicos
     df['ema20'] = ta.ema(df['close'], length=20)
     df['ema50'] = ta.ema(df['close'], length=50)
     df['rsi'] = ta.rsi(df['close'], length=14)
     
+    # Cálculo de ADX con detección dinámica de columnas para evitar KeyErrors
     adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
-    df['adx'] = adx_df['ADX_14']
-    df['plus_di'] = adx_df['DMP_14']
-    df['minus_di'] = adx_df['DMN_14']
+    
+    cols = adx_df.columns
+    adx_col = [c for c in cols if 'ADX' in c.upper()][0]
+    pdi_col = [c for c in cols if 'DMP' in c.upper() or 'DI+' in c or 'PLUS' in c.upper()][0]
+    mdi_col = [c for c in cols if 'DMN' in c.upper() or 'DI-' in c or 'MINUS' in c.upper()][0]
+    
+    df['adx'] = adx_df[adx_col]
+    df['plus_di'] = adx_df[pdi_col]
+    df['minus_di'] = adx_df[mdi_col]
     
     return df.dropna().reset_index(drop=True)
 
