@@ -10,14 +10,30 @@ st.set_page_config(page_title="Crypto Quant Bot - Short Only", page_icon="📉",
 st.title("📉 Bot Cuantitativo BTC/USDT (Short-Only)")
 st.markdown("Panel de control en tiempo real con sistema de alertas automatizadas.")
 
-# Configuración de Telegram en la pantalla principal
-with st.expander("⚙️ Configurar Alertas de Telegram", expanded=True):
-    st.markdown("Introduce tus credenciales para activar las notificaciones push en tiempo real.")
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        telegram_token = st.text_input("Telegram Bot Token", type="password")
-    with col_t2:
-        chat_id = st.text_input("Telegram Chat ID", type="password")
+# Cargar credenciales de Telegram de forma segura desde los Secrets de la nube
+try:
+    TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
+    TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
+    CREDENCIALES_VALIDAS = True
+except Exception:
+    CREDENCIALES_VALIDAS = False
+
+def enviar_alerta_telegram(mensaje):
+    """Función para enviar mensajes automáticos vía Telegram"""
+    if not CREDENCIALES_VALIDAS:
+        return False
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": mensaje,
+        "parse_mode": "Markdown"
+    }
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Error al enviar alerta: {e}")
+        return False
 
 def enviar_alerta_telegram(token, chat_id, mensaje):
     """Función para enviar mensajes automáticos vía Telegram"""
