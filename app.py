@@ -1,8 +1,8 @@
 import streamlit as st
 import ccxt
 import pandas as pd
-import requests
 import numpy as np
+import requests
 
 # Configuración de la página
 st.set_page_config(page_title="Crypto Quant Bot - Short Only", page_icon="📉", layout="centered")
@@ -48,34 +48,48 @@ if st.button("🧪 Enviar Alerta de Prueba a Telegram"):
     else:
         st.warning("Por favor, introduce primero tu Telegram Bot Token y Chat ID arriba.")
 
+import numpy as np
+
 @st.cache_data(ttl=300)
 def cargar_datos():
     exchange = ccxt.kraken()
     bars = exchange.fetch_ohlcv('BTC/USDT', timeframe='4h', limit=300)
     df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     
-    # Limpiar índices para evitar desalineaciones en los cálculos
-    high = df['high'].astype(float).reset_index(drop=True)
-    low = df['low'].astype(float).reset_index(drop=True)
-    close = df['close'].astype(float).reset_index(drop=True)
+    close = df['close'].astype(float)
+    high = df['high'].astype(float)
+    low = df['low'].astype(float)
     
-    # Indicadores técnicos básicos
-    df['ema20'] = ta.ema(close, length=20)
-    df['ema50'] = ta.ema(close, length=50)
-    df['rsi'] = ta.rsi(close, length=14)
+    # 1. Medias Móviles Exponenciales (EMA)
+    df['ema20'] = close.ewm(span=20, adjust=False).mean()
+    df['ema50'] = close.ewm(span=50, adjust=False).mean()
     
-    # Cálculo seguro de ADX
-    adx_df = ta.adx(high, low, close, length=14)
+    # 2. Índice de Fuerza Relativa (RSI)
+    delta = close.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0.0)
+    avg_gain = gain.rolling(window=14).mean()
+    avg_loss = loss.rolling(window=14).mean()
+    rs = avg_gain / avg_loss
+    df['rsi'] = 100 - (100 / (1 + rs))
     
-    if adx_df is not None and not adx_df.empty and adx_df.shape[1] >= 3:
-        df['adx'] = adx_df.iloc[:, 0].values
-        df['plus_di'] = adx_df.iloc[:, 1].values
-        df['minus_di'] = adx_df.iloc[:, 2].values
-    else:
-        # Valores por defecto en caso de fallo extremo del indicador
-        df['adx'] = 0.0
-        df['plus_di'] = 0.0
-        df['minus_di'] = 0.0
+    # 3. ADX, +DI y -DI nativos
+    tr1 = high - low
+    tr2 = (high - close.shift()).abs()
+    tr3 = (low - close.shift()).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr = tr.rolling(window=14).mean()
+    
+    plus_dm = high.diff()
+    minus_dm = low.shift() - low
+    plus_dm = np.where((plus_dm > minus_dm) & (plus_dm > 0), plus_dm, 0.0)
+    minus_dm = np.where((minus_dm > plus_dm) & (minus_dm > 0), minus_dm, 0.0)
+    
+    df['plus_di'] = 100 * pd.Series(plus_dm).rolling(window=14).mean() / atr
+    df['minus_di'] = 100 * pd.Series(minus_dm).rolling(window=14).mean() / atr
+    
+    dx = 100 * (df['plus_di'] - df['minus_di']).abs() / (df['plus_di'] + df['minus_di']).abs()
+    df['adx'] = dx.rolling(window=14).mean()
     
     return df.dropna().reset_index(drop=True)
 with st.spinner("Conectando con Binance y calculando indicadores..."):
