@@ -162,7 +162,7 @@ if score_short >= threshold:
             f"🎯 *Take Profit (3.0%):* ${tp_precio:,.2f}\n"
             f"⏳ *Temporalidad:* 4h"
         )
-        exito = enviar_alerta_telegram(telegram_token, chat_id, mensaje_tg)
+        exito = enviar_alerta_telegram(mensaje_tg)
         if exito:
             st.success("¡Alerta enviada con éxito a tu Telegram!")
             st.session_state.ultima_alerta_enviada = identificador_vela
