@@ -52,17 +52,14 @@ def enviar_alerta_telegram(token, chat_id, mensaje):
         print(f"Error enviando alerta: {e}")
         return False
 
-# Botón de prueba rápida para verificar Telegram
-if st.button("🧪 Enviar Alerta de Prueba a Telegram"):
-    if telegram_token and chat_id:
-        mensaje_prueba = "🤖 *¡Prueba exitosa!* Tu bot cuantitativo de BTC/USDT está conectado correctamente."
-        exito_prueba = enviar_alerta_telegram(telegram_token, chat_id, mensaje_prueba)
-        if exito_prueba:
-            st.success("¡Mensaje de prueba enviado! Revisa tu Telegram.")
-        else:
-            st.error("Error al enviar. Revisa que tu Token y tu Chat ID sean correctos.")
+# Botón de prueba rápida para verificar Telegram usando los Secrets
+if st.button("🧹 Enviar Alerta de Prueba a Telegram"):
+    mensaje_prueba = "🤖 *¡Prueba exitosa!* Tu bot cuantitativo Short-Only está conectado y listo 24/7."
+    exito_prueba = enviar_alerta_telegram(mensaje_prueba)
+    if exito_prueba:
+        st.success("¡Alerta de prueba enviada con éxito a Telegram!")
     else:
-        st.warning("Por favor, introduce primero tu Telegram Bot Token y Chat ID arriba.")
+        st.error("No se pudo enviar. Revisa que tus Secrets estén bien configurados en Streamlit Cloud.")
 
 import numpy as np
 
