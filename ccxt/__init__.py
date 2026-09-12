@@ -1,8 +1,21 @@
-from ccxt import *
-import ccxt as _ccxt
+import sys
+import os
 
-# Interceptar la clase binance para asegurar compatibilidad en la nube
-class binance(_ccxt.binance):
+# Evitar importación circular removiendo temporalmente la ruta local
+current_dir = os.path.dirname(__file__)
+if current_dir in sys.path:
+    sys.path.remove(current_dir)
+
+import ccxt as _real_ccxt
+
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# Re-exportar todo desde la librería real de CCXT
+from ccxt import *
+
+# Sobrescribir la clase binance para asegurar conectividad estable en la nube
+class binance(_real_ccxt.binance):
     def __init__(self, config=None):
         if config is None:
             config = {}
