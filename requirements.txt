@@ -2,5 +2,4 @@ setuptools
 wheel
 ccxt
 pandas
-pandas-ta
 requests
