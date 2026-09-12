@@ -1,8 +1,8 @@
 import streamlit as st
 import ccxt
 import pandas as pd
-import pandas_ta as ta
 import requests
+import numpy as np
 
 # Configuración de la página
 st.set_page_config(page_title="Crypto Quant Bot - Short Only", page_icon="📉", layout="centered")
