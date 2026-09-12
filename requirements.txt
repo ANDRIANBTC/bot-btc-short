@@ -1,7 +1,5 @@
 streamlit
-setuptools
-wheel
 ccxt
 pandas
-pandas-ta
+git+https://github.com/twopirllc/pandas-ta.git
 requests
