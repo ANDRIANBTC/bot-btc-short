@@ -60,11 +60,11 @@ def cargar_datos():
     high = df['high'].astype(float)
     low = df['low'].astype(float)
     
-    # 1. Medias Móviles Exponenciales (EMA)
+    # 1. Medias Móviles Exponenciales (EMA) nativas
     df['ema20'] = close.ewm(span=20, adjust=False).mean()
     df['ema50'] = close.ewm(span=50, adjust=False).mean()
     
-    # 2. Índice de Fuerza Relativa (RSI)
+    # 2. Índice de Fuerza Relativa (RSI) nativo
     delta = close.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0.0)
