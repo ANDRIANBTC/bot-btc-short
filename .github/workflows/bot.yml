@@ -2,8 +2,8 @@ name: Bot BTC Short 24/7
 
 on:
   schedule:
-    - cron: '*/15 * * * *'  # Se ejecuta cada 15 minutos automáticamente
-  workflow_dispatch:        # Permite ejecutarlo manualmente desde GitHub cuando quieras
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
   run-bot:
@@ -27,5 +27,14 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        working-directory: .
         run: |
-          python bot.py
+          # Busca el archivo tanto en la raíz como en la subcarpeta por seguridad
+          if [ -f "bot.py" ]; then
+            python bot.py
+          elif [ -f "bot-btc-short/bot.py" ]; then
+            python bot-btc-short/bot.py
+          else
+            # Si hay doble anidación, busca ahí
+            python */bot.py
+          fi
