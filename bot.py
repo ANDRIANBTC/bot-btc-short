@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 import requests
 
-# Credenciales desde las variables de entorno del sistema (o Secrets de GitHub)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -72,7 +71,7 @@ def cargar_y_analizar_datos():
     return df.dropna().reset_index(drop=True)
 
 def ejecutar_bot():
-    print("🔄 Analizando mercado de BTC/USDT en Kraken...")
+    print("🔄 Analizando mercado de BTC/USDT en Kraken para Long y Short...")
     try:
         df = cargar_y_analizar_datos()
         ultima_vela = df.iloc[-1]
@@ -84,13 +83,14 @@ def ejecutar_bot():
         rsi = float(ultima_vela['rsi'])
         rsi_prev = float(penultima_vela['rsi'])
         adx = float(ultima_vela['adx'])
-        minus_di = float(ultima_vela['minus_di'])
         plus_di = float(ultima_vela['plus_di'])
+        minus_di = float(ultima_vela['minus_di'])
 
         threshold = 78.0
         sl_pct = 0.015
         tp_pct = 0.030
 
+        # --- EVALUACIÓN SHORT ---
         score_short = 0.0
         if precio_actual < ema20 and ema20 < ema50: score_short += 25.0
         if ema20 < ema50: score_short += 15.0
@@ -99,29 +99,48 @@ def ejecutar_bot():
         if adx > 25: score_short += 15.0
         if minus_di > plus_di: score_short += 20.0
 
-        print(f"📊 Precio actual: ${precio_actual:,.2f} | Score Short: {score_short} / {threshold}")
+        # --- EVALUACIÓN LONG ---
+        score_long = 0.0
+        if precio_actual > ema20 and ema20 > ema50: score_long += 25.0
+        if ema20 > ema50: score_long += 15.0
+        if (rsi < 35) or (50 <= rsi <= 65): score_long += 15.0
+        if rsi > rsi_prev: score_long += 10.0
+        if adx > 25: score_long += 15.0
+        if plus_di > minus_di: score_long += 20.0
 
+        print(f"📊 Precio: ${precio_actual:,.2f} | Score Long: {score_long}/{threshold} | Score Short: {score_short}/{threshold}")
+
+        # Disparador de Alerta SHORT
         if score_short >= threshold:
             sl_precio = precio_actual * (1.0 + sl_pct)
             tp_precio = precio_actual * (1.0 - tp_pct)
-            
-            identificador_vela = str(ultima_vela['timestamp'])
-            
             mensaje_tg = (
                 f"🚨 *¡NUEVA SEÑAL SHORT EN BTC/USDT!* 🚨\n\n"
-                f"📊 *Score de Confluencia:* {score_short} / {threshold}\n"
-                f"💵 *Precio Entrada:* ${precio_actual:,.2f}\n"
-                f"🛑 *Stop Loss (1.5%):* ${sl_precio:,.2f}\n"
-                f"🎯 *Take Profit (3.0%):* ${tp_precio:,.2f}\n"
+                f"📊 *Score:* {score_short} / {threshold}\n"
+                f"💵 *Entrada:* ${precio_actual:,.2f}\n"
+                f"🛑 *Stop Loss:* ${sl_precio:,.2f}\n"
+                f"🎯 *Take Profit:* ${tp_precio:,.2f}\n"
                 f"⏳ *Temporalidad:* 4h"
             )
-            
-            # Nota: En GitHub Actions puedes guardar un registro temporal o simplemente disparar la alerta
-            exito = enviar_alerta_telegram(mensaje_tg)
-            if exito:
-                print("✅ ¡Alerta enviada con éxito a Telegram!")
+            enviar_alerta_telegram(mensaje_tg)
+            print("✅ ¡Alerta SHORT enviada!")
+
+        # Disparador de Alerta LONG
+        elif score_long >= threshold:
+            sl_precio = precio_actual * (1.0 - sl_pct)
+            tp_precio = precio_actual * (1.0 + tp_pct)
+            mensaje_tg = (
+                f"🟢 *¡NUEVA SEÑAL LONG EN BTC/USDT!* 🟢\n\n"
+                f"📊 *Score:* {score_long} / {threshold}\n"
+                f"💵 *Entrada:* ${precio_actual:,.2f}\n"
+                f"🛑 *Stop Loss:* ${sl_precio:,.2f}\n"
+                f"🎯 *Take Profit:* ${tp_precio:,.2f}\n"
+                f"⏳ *Temporalidad:* 4h"
+            )
+            enviar_alerta_telegram(mensaje_tg)
+            print("✅ ¡Alerta LONG enviada!")
         else:
-            print("⏳ Estado: WAIT (Sin confluencia bajista suficiente).")
+            print("⏳ Estado: WAIT (Sin confluencia suficiente para Long ni Short).")
 
     except Exception as e:
         print(f"⚠️ Error al ejecutar el análisis: {e}")
