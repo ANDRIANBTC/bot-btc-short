@@ -3,24 +3,21 @@ import ccxt
 import pandas as pd
 import numpy as np
 import requests
+import os
 
 # Configuración de la página
-st.set_page_config(page_title="Crypto Quant Bot - Short Only", page_icon="📉", layout="centered")
+st.set_page_config(
+    page_title="Bot Cuantitativo BTC/USDT (Long & Short)",
+    page_icon="📈",
+    layout="centered"
+)
 
-st.title("📉 Bot Cuantitativo BTC/USDT (Short-Only)")
-st.markdown("Panel de control en tiempo real con sistema de alertas automatizadas.")
-
-# Cargar credenciales de Telegram de forma segura desde los Secrets de la nube
-try:
-    TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
-    TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
-    CREDENCIALES_VALIDAS = True
-except Exception:
-    CREDENCIALES_VALIDAS = False
+# Cargar credenciales desde secrets de Streamlit Cloud o variables de entorno
+TELEGRAM_BOT_TOKEN = st.secrets.get("TELEGRAM_BOT_TOKEN", os.getenv("TELEGRAM_BOT_TOKEN", ""))
+TELEGRAM_CHAT_ID = st.secrets.get("TELEGRAM_CHAT_ID", os.getenv("TELEGRAM_CHAT_ID", ""))
 
 def enviar_alerta_telegram(mensaje):
-    """Función para enviar mensajes automáticos vía Telegram"""
-    if not CREDENCIALES_VALIDAS:
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return False
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
@@ -31,30 +28,11 @@ def enviar_alerta_telegram(mensaje):
     try:
         response = requests.post(url, json=payload, timeout=10)
         return response.status_code == 200
-    except Exception as e:
-        print(f"Error al enviar alerta: {e}")
+    except Exception:
         return False
-
-    try:
-        response = requests.post(url, json=payload)
-        return response.status_code == 200
-    except Exception as e:
-        print(f"Error enviando alerta: {e}")
-        return False
-
-# Botón de prueba rápida para verificar Telegram usando los Secrets
-if st.button("🧹 Enviar Alerta de Prueba a Telegram"):
-    mensaje_prueba = "🤖 *¡Prueba exitosa!* Tu bot cuantitativo Short-Only está conectado y listo 24/7."
-    exito_prueba = enviar_alerta_telegram(mensaje_prueba)
-    if exito_prueba:
-        st.success("¡Alerta de prueba enviada con éxito a Telegram!")
-    else:
-        st.error("No se pudo enviar. Revisa que tus Secrets estén bien configurados en Streamlit Cloud.")
-
-import numpy as np
 
 @st.cache_data(ttl=300)
-def cargar_datos():
+def cargar_y_analizar_datos():
     exchange = ccxt.kraken()
     bars = exchange.fetch_ohlcv('BTC/USDT', timeframe='4h', limit=300)
     df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
@@ -63,11 +41,11 @@ def cargar_datos():
     high = df['high'].astype(float)
     low = df['low'].astype(float)
     
-    # 1. Medias Móviles Exponenciales (EMA) nativas
+    # 1. EMA
     df['ema20'] = close.ewm(span=20, adjust=False).mean()
     df['ema50'] = close.ewm(span=50, adjust=False).mean()
     
-    # 2. Índice de Fuerza Relativa (RSI) nativo
+    # 2. RSI
     delta = close.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0.0)
@@ -76,7 +54,7 @@ def cargar_datos():
     rs = avg_gain / avg_loss
     df['rsi'] = 100 - (100 / (1 + rs))
     
-    # 3. ADX, +DI y -DI nativos
+    # 3. ADX y Direcionales
     tr1 = high - low
     tr2 = (high - close.shift()).abs()
     tr3 = (low - close.shift()).abs()
@@ -95,86 +73,91 @@ def cargar_datos():
     df['adx'] = dx.rolling(window=14).mean()
     
     return df.dropna().reset_index(drop=True)
-with st.spinner("Conectando con Binance y calculando indicadores..."):
-    df = cargar_datos()
 
-# Datos de la última vela
-ultima_vela = df.iloc[-1]
-penultima_vela = df.iloc[-2]
+# Título de la App
+st.title("📈 Bot Cuantitativo BTC/USDT (Long & Short)")
+st.markdown("Panel de control en tiempo real con sistema de alertas automatizadas (Temporalidad 4h).")
 
-precio_actual = float(ultima_vela['close'])
-ema20 = float(ultima_vela['ema20'])
-ema50 = float(ultima_vela['ema50'])
-rsi = float(ultima_vela['rsi'])
-rsi_prev = float(penultima_vela['rsi'])
-adx = float(ultima_vela['adx'])
-minus_di = float(ultima_vela['minus_di'])
-plus_di = float(ultima_vela['plus_di'])
+# Botón de prueba a Telegram
+if st.button("📢 Enviar Alerta de Prueba a Telegram"):
+    exito = enviar_alerta_telegram("🔔 *Prueba de conexión exitosa* desde el Bot Cuantitativo BTC/USDT.")
+    if exito:
+        st.success("¡Alerta de prueba enviada con éxito a Telegram!")
+    else:
+        st.error("Error al enviar. Verifica tus credenciales de Telegram en los Secrets.")
 
-# Parámetros del sistema
-threshold = 78.0
-sl_pct = 0.015
-tp_pct = 0.030
+try:
+    df = cargar_y_analizar_datos()
+    ultima_vela = df.iloc[-1]
+    penultima_vela = df.iloc[-2]
 
-# Evaluación de la señal SHORT
-score_short = 0.0
-if precio_actual < ema20 and ema20 < ema50: score_short += 25.0
-if ema20 < ema50: score_short += 15.0
-if (rsi > 65) or (35 <= rsi <= 50): score_short += 15.0
-if rsi < rsi_prev: score_short += 10.0
-if adx > 25: score_short += 15.0
-if minus_di > plus_di: score_short += 20.0
+    precio_actual = float(ultima_vela['close'])
+    ema20 = float(ultima_vela['ema20'])
+    ema50 = float(ultima_vela['ema50'])
+    rsi = float(ultima_vela['rsi'])
+    rsi_prev = float(penultima_vela['rsi'])
+    adx = float(ultima_vela['adx'])
+    plus_di = float(ultima_vela['plus_di'])
+    minus_di = float(ultima_vela['minus_di'])
 
-# Métricas visuales
-col1, col2, col3 = st.columns(3)
-col1.metric("Precio BTC/USDT", f"${precio_actual:,.2f}")
-col2.metric("RSI Actual", f"{rsi:.1f}")
-col3.metric("Puntuación Short", f"{score_short:.1f} / {threshold}")
+    threshold = 78.0
+    sl_pct = 0.015
+    tp_pct = 0.030
 
-st.divider()
+    # Evaluación Short
+    score_short = 0.0
+    if precio_actual < ema20 and ema20 < ema50: score_short += 25.0
+    if ema20 < ema50: score_short += 15.0
+    if (rsi > 65) or (35 <= rsi <= 50): score_short += 15.0
+    if rsi < rsi_prev: score_short += 10.0
+    if adx > 25: score_short += 15.0
+    if minus_di > plus_di: score_short += 20.0
 
-# Panel de Señal en Tiempo Real
-st.subheader("Estado de la Señal (Temporalidad 4h)")
+    # Evaluación Long
+    score_long = 0.0
+    if precio_actual > ema20 and ema20 > ema50: score_long += 25.0
+    if ema20 > ema50: score_long += 15.0
+    if (rsi < 35) or (50 <= rsi <= 65): score_long += 15.0
+    if rsi > rsi_prev: score_long += 10.0
+    if adx > 25: score_long += 15.0
+    if plus_di > minus_di: score_long += 20.0
 
-if score_short >= threshold:
-    st.error(f"🔴 ¡SEÑAL DE VENTA (SHORT DETECTADA)! Score: {score_short}")
-    
-    sl_precio = precio_actual * (1.0 + sl_pct)
-    tp_precio = precio_actual * (1.0 - tp_pct)
-    
-    st.markdown(f"""
-    * **Precio de Entrada Sugerido:** ${precio_actual:,.2f}
-    * **Stop Loss (1.5%):** ${sl_precio:,.2f}
-    * **Take Profit (3.0% - Ratio 1:2):** ${tp_precio:,.2f}
-    """)
-    
-    # Disparar alerta automática a Telegram
-    if "ultima_alerta_enviada" not in st.session_state:
-        st.session_state.ultima_alerta_enviada = None
+    # Métricas visuales en columnas
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Precio BTC/USDT", f"${precio_actual:,.2f}")
+    col2.metric("RSI Actual", f"{rsi:.1f}")
+    col3.metric("Puntuación Long", f"{score_long:.1f} / {threshold}")
+    col4.metric("Puntuación Short", f"{score_short:.1f} / {threshold}")
 
-    identificador_vela = str(ultima_vela['timestamp'])
-    if st.session_state.ultima_alerta_enviada != identificador_vela:
-        mensaje_tg = (
-            f"🚨 *¡NUEVA SEÑAL SHORT EN BTC/USDT!* 🚨\n\n"
-            f"📊 *Score de Confluencia:* {score_short} / {threshold}\n"
-            f"💵 *Precio Entrada:* ${precio_actual:,.2f}\n"
-            f"🛑 *Stop Loss (1.5%):* ${sl_precio:,.2f}\n"
-            f"🎯 *Take Profit (3.0%):* ${tp_precio:,.2f}\n"
-            f"⏳ *Temporalidad:* 4h"
-        )
-        exito = enviar_alerta_telegram(mensaje_tg)
-        if exito:
-            st.success("¡Alerta enviada con éxito a tu Telegram!")
-            st.session_state.ultima_alerta_enviada = identificador_vela
-else:
-    st.success(f"⏳ ESTADO: WAIT (Esperando confluencia bajista clara. Score actual: {score_short})")
+    st.markdown("---")
+    st.subheader("Estado de la Señal (Temporalidad 4h)")
 
-# Desglose técnico
-with st.expander("Ver métricas técnicas detalladas"):
-    st.write(f"- **EMA 20:** ${ema20:,.2f}")
-    st.write(f"- **EMA 50:** ${ema50:,.2f}")
-    st.write(f"- **ADX (Fuerza de tendencia):** {adx:.2f}")
-    st.write(f"- **-DI / +DI:** {minus_di:.2f} / {plus_di:.2f}")
+    if score_short >= threshold:
+        sl_precio = precio_actual * (1.0 + sl_pct)
+        tp_precio = precio_actual * (1.0 - tp_pct)
+        st.error(f"🚨 **¡SEÑAL SHORT ACTIVADA!** Score: {score_short:.1f} / {threshold}\n\n"
+                 f"- **Entrada:** ${precio_actual:,.2f}\n"
+                 f"- **Stop Loss (1.5%):** ${sl_precio:,.2f}\n"
+                 f"- **Take Profit (3.0%):** ${tp_precio:,.2f}")
+    elif score_long >= threshold:
+        sl_precio = precio_actual * (1.0 - sl_pct)
+        tp_precio = precio_actual * (1.0 + tp_pct)
+        st.success(f"🟢 **¡SEÑAL LONG ACTIVADA!** Score: {score_long:.1f} / {threshold}\n\n"
+                   f"- **Entrada:** ${precio_actual:,.2f}\n"
+                   f"- **Stop Loss (1.5%):** ${sl_precio:,.2f}\n"
+                   f"- **Take Profit (3.0%):** ${tp_precio:,.2f}")
+    else:
+        st.info(f"⏳ **ESTADO: WAIT** (Sin confluencia suficiente. Long: {score_long:.1f} | Short: {score_short:.1f})")
+
+    with st.expander("📊 Ver métricas técnicas detalladas"):
+        st.write(f"- **EMA 20:** ${ema20:,.2f}")
+        st.write(f"- **EMA 50:** ${ema50:,.2f}")
+        st.write(f"- **ADX:** {adx:.1f}")
+        st.write(f"- **+DI:** {plus_di:.1f} | **-DI:** {minus_di:.1f}")
+        st.write(f"- **RSI Anterior:** {rsi_prev:.1f}")
+
+except Exception as e:
+    st.error(f"⚠️ Error al conectar con Kraken o procesar datos: {e}")
 
 if st.button("Actualizar Datos de Mercado"):
     st.cache_data.clear()
